@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>茹意宝 - 学生管理</title>
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .admin-shell { max-width: 1280px; margin: 0 auto; padding: 24px; }
+    .admin-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .admin-topbar h1 { margin: 0; font-size: 24px; }
+    .admin-topbar .right { display: flex; gap: 10px; align-items: center; }
+    .admin-topbar .user-info { color: var(--muted); font-size: 14px; }
+
+    .admin-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+    @media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } }
+
+    .student-list-panel { max-height: calc(100vh - 140px); overflow-y: auto; }
+    .student-item {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .student-item:hover, .student-item.active { background: var(--primary-soft); border-color: var(--primary); }
+    .student-item .name { font-weight: 600; font-size: 15px; }
+    .student-item .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    .detail-panel { max-height: calc(100vh - 140px); overflow-y: auto; }
+    .detail-empty { color: var(--muted); text-align: center; padding: 60px 20px; }
+
+    .convo-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .convo-card:hover { background: var(--primary-soft); }
+    .convo-card .convo-q { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+    .convo-card .convo-meta { font-size: 12px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+
+    .convo-detail-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px; flex-wrap: wrap; gap: 10px;
+    }
+    .convo-detail-header h3 { margin: 0; }
+
+    .msg-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .msg-item { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); font-size: 14px; }
+    .msg-item.user { background: var(--user); margin-left: 40px; }
+    .msg-item.assistant { background: var(--assistant); margin-right: 40px; }
+    .msg-item .msg-meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+
+    .summary-box {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+    .summary-box h4 { margin: 0 0 8px; font-size: 14px; }
+    .summary-box p { margin: 4px 0; font-size: 13px; color: var(--muted); }
+
+    .add-student-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .add-student-row input { flex: 1; border-radius: 12px; padding: 10px 12px; }
+    .add-student-row button { white-space: nowrap; }
+
+    .search-box { margin-bottom: 12px; }
+    .search-box input { border-radius: 12px; padding: 10px 12px; }
+
+    .back-btn {
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 10px;
+    }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+    .badge.teacher { background: #fef3c7; color: #92400e; }
+    .badge.student { background: #dbeafe; color: #1e40af; }
+
+    .student-info-card {
+      background: var(--primary-soft);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .student-info-card h3 { margin: 0 0 8px; }
+    .student-info-card .info-row { font-size: 13px; color: var(--muted); margin: 4px 0; }
+
+    .tab-nav { display: flex; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 16px; }
+    .tab-nav button {
+      background: none; color: var(--muted); border: 0; border-bottom: 2px solid transparent;
+      margin-bottom: -2px; padding: 10px 18px; cursor: pointer; font-weight: 600; border-radius: 0;
+    }
+    .tab-nav button.active { color: var(--primary); border-bottom-color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <div class="admin-topbar">
+      <div>
+        <h1>学生管理</h1>
+      </div>
+      <div class="right">
+        <a href="/" style="text-decoration:none"><button class="secondary">返回练习</button></a>
+        <span class="user-info" id="currentUser"></span>
+        <button class="secondary" id="logoutBtn" style="font-size:13px;">退出登录</button>
+      </div>
+    </div>
+
+    <div class="admin-grid">
+      <!-- Left: student list -->
+      <div class="panel student-list-panel">
+        <h2>学生列表</h2>
+        <div class="add-student-row">
+          <input type="text" id="newStudentName" placeholder="用户名" />
+          <input type="text" id="newStudentDisplay" placeholder="显示名" style="max-width:120px;" />
+          <button id="addStudentBtn">添加</button>
+        </div>
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="搜索学生…" />
+        </div>
+        <div id="studentList"></div>
+      </div>
+
+      <!-- Right: detail -->
+      <div class="panel detail-panel" id="detailPanel">
+        <div class="detail-empty" id="detailEmpty">
+          选择左边一个学生查看对话记录
+        </div>
+        <div id="detailContent" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- Auth check ----
+    let currentUser = null;
+    try { currentUser = JSON.parse(localStorage.getItem('mc_user')); } catch {}
+    if (!currentUser || !currentUser.id || currentUser.id === 'guest') {
+      window.location.href = '/login.html';
+    }
+    document.getElementById('currentUser').textContent = `${currentUser.displayName} (${currentUser.role === 'teacher' ? '教师' : '学生'})`;
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('mc_user');
+      window.location.href = '/login.html';
+    });
+
+    // ---- State ----
+    let students = [];
+    let selectedStudentId = null;
+    let studentConversations = [];
+    let selectedConvoId = null;
+
+    // ---- API helpers ----
+    async function api(url, opts = {}) {
+      const headers = { 'Content-Type': 'application/json', 'x-user-id': currentUser.id };
+      const res = await fetch(url, { ...opts, headers: { ...headers, ...opts.headers } });
+      return res.json();
+    }
+
+    // ---- Load students ----
+    async function loadStudents() {
+      const data = await api('/api/admin/students');
+      students = data.students || [];
+      renderStudentList();
+    }
+
+    function renderStudentList(filter = '') {
+      const el = document.getElementById('studentList');
+      const filtered = filter
+        ? students.filter(s => s.displayName.includes(filter) || s.username.includes(filter))
+        : students;
+      if (filtered.length === 0) {
+        el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">暂无学生</div>';
+        return;
+      }
+      el.innerHTML = filtered.map(s => `
+        <div class="student-item ${s.id === selectedStudentId ? 'active' : ''}" data-id="${s.id}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <div class="name">${esc(s.displayName)} <span class="badge ${s.role}">${s.role === 'teacher' ? '教师' : '学生'}</span></div>
+              <div class="meta">@${esc(s.username)} · 注册于 ${fmtDate(s.createdAt)}</div>
+            </div>
+            <button class="delete-student-btn" data-id="${s.id}" data-name="${esc(s.displayName)}" style="background:none;color:#ef4444;border:1px solid #fca5a5;border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer;flex-shrink:0;margin-left:8px;" title="删除学生">删除</button>
+          </div>
+        </div>
+      `).join('');
+      el.querySelectorAll('.student-item').forEach(item => {
+        item.addEventListener('click', () => selectStudent(item.dataset.id));
+      });
+      el.querySelectorAll('.delete-student-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const { id, name } = btn.dataset;
+          if (!confirm(`确定要删除学生「${name}」吗？此操作不可恢复，该学生的所有对话记录也将被删除。`)) return;
+          const data = await api(`/api/admin/students/${id}`, { method: 'DELETE' });
+          if (data.error) return alert(data.error);
+          if (selectedStudentId === id) {
+            selectedStudentId = null;
+            document.getElementById('detailEmpty').style.display = '';
+            document.getElementById('detailContent').style.display = 'none';
+          }
+          loadStudents();
+        });
+      });
+    }
+
+    // ---- Select student ----
+    async function selectStudent(id) {
+      selectedStudentId = id;
+      selectedConvoId = null;
+      renderStudentList(document.getElementById('searchInput').value.trim());
+      const data = await api(`/api/admin/students/${id}/conversations`);
+      studentConversations = data.conversations || [];
+      renderStudentDetail();
+    }
+
+    function renderStudentDetail() {
+      const student = students.find(s => s.id === selectedStudentId);
+      if (!student) return;
+      document.getElementById('detailEmpty').style.display = 'none';
+      const el = document.getElementById('detailContent');
+      el.style.display = 'block';
+
+      if (selectedConvoId) {
+        renderConvoDetail();
+        return;
+      }
+
+      let html = `
+        <div class="student-info-card">
+          <h3>${esc(student.displayName)}</h3>
+          <div class="info-row">用户名：${esc(student.username)}</div>
+          <div class="info-row">角色：${student.role === 'teacher' ? '教师' : '学生'}</div>
+          <div class="info-row">注册时间：${fmtDate(student.createdAt)}</div>
+          <div class="info-row">对话记录数：${studentConversations.length}</div>
+        </div>
+        <h3>对话记录</h3>
+      `;
+
+      if (studentConversations.length === 0) {
+        html += '<div style="color:var(--muted);text-align:center;padding:20px;">该学生暂无对话记录</div>';
+      } else {
+        html += studentConversations.map(c => `
+          <div class="convo-card" data-id="${c.id}">
+            <div class="convo-q">${esc(c.questionText || '（未设置题目）')}</div>
+            <div class="convo-meta">
+              <span>消息数：${(c.messages || []).length}</span>
+              <span>创建：${fmtDate(c.createdAt)}</span>
+              <span>更新：${fmtDate(c.updatedAt)}</span>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      el.innerHTML = html;
+      el.querySelectorAll('.convo-card').forEach(card => {
+        card.addEventListener('click', () => {
+          selectedConvoId = card.dataset.id;
+          renderConvoDetail();
+        });
+      });
+    }
+
+    // ---- Render single conversation detail ----
+    async function renderConvoDetail() {
+      const convo = studentConversations.find(c => c.id === selectedConvoId);
+      if (!convo) return;
+
+      const el = document.getElementById('detailContent');
+      const messages = convo.messages || [];
+      const summary = convo.summary;
+
+      let html = `
+        <div class="convo-detail-header">
+          <div>
+            <button class="back-btn" id="backToList">← 返回列表</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted);">
+            ${fmtDate(convo.createdAt)} ~ ${fmtDate(convo.updatedAt)}
+          </div>
+        </div>
+        <h3>题目</h3>
+        <p style="font-size:14px;color:var(--muted);margin:0 0 16px;">${esc(convo.questionText || '未设置题目')}</p>
+      `;
+
+      // Summary box
+      if (summary) {
+        let summaryHtml = '<div class="summary-box"><h4>复盘总结</h4>';
+
+        // Student-facing narrative
+        if (summary.studentFacing?.whatHappened) {
+          summaryHtml += `<p><strong>发生了什么：</strong>${esc(summary.studentFacing.whatHappened)}</p>`;
+        } else if (summary.whatHappened) {
+          summaryHtml += `<p><strong>发生了什么：</strong>${esc(summary.whatHappened)}</p>`;
+        }
+
+        // Root cause
+        if (summary.rootCause) {
+          summaryHtml += `<p><strong>真正卡点：</strong>${esc(summary.rootCause)}</p>`;
+        }
+
+        // Knowledge diagnosis
+        if (summary.knowledgeDiagnosis) {
+          const kd = summary.knowledgeDiagnosis;
+          if (kd.gaps && kd.gaps.length) {
+            summaryHtml += `<p><strong>知识空白：</strong>${kd.gaps.map(esc).join('；')}</p>`;
+          }
+          if (kd.fuzzy && kd.fuzzy.length) {
+            summaryHtml += `<p><strong>知识夹生：</strong>${kd.fuzzy.map(esc).join('；')}</p>`;
+          }
+          if (kd.mastered && kd.mastered.length) {
+            summaryHtml += `<p><strong>已掌握：</strong>${kd.mastered.map(esc).join('；')}</p>`;
+          }
+        }
+
+        // CER chain
+        if (summary.serChain && summary.serChain.triggered) {
+          const s = summary.serChain;
+          summaryHtml += `<p><strong>CER 类型：</strong>${esc(s.cerType || '未分类')}</p>`;
+          summaryHtml += `<p><strong>S-E-R 链条：</strong>${esc(s.S || '')} → ${esc(s.E || '')} → ${esc(s.R || '')}</p>`;
+          if (s.description) summaryHtml += `<p><strong>程序描述：</strong>${esc(s.description)}</p>`;
+        }
+
+        // Training task
+        if (summary.metacognitiveTraining) {
+          const mt = summary.metacognitiveTraining;
+          summaryHtml += `<p><strong>下次训练任务：</strong>${esc(mt.task || '')}</p>`;
+          if (mt.whenToUse) summaryHtml += `<p><strong>使用时机：</strong>${esc(mt.whenToUse)}</p>`;
+        } else if (summary.nextAction) {
+          summaryHtml += `<p><strong>下次建议：</strong>${esc(summary.nextAction)}</p>`;
+        }
+
+        summaryHtml += '</div>';
+        html += summaryHtml;
+      }
+
+      html += '<h3>完整对话（' + messages.length + ' 条）</h3>';
+      html += '<div class="msg-list">';
+      messages.forEach(m => {
+        const role = m.role || 'user';
+        const label = role === 'user' ? '学生' : '王鹰教授';
+        const typeTag = m.type ? ` · ${m.type}` : '';
+        const time = m.timestamp ? fmtTime(m.timestamp) : '';
+        html += `
+          <div class="msg-item ${role}">
+            <div class="msg-meta">${label}${typeTag}${time ? ' · ' + time : ''}</div>
+            <div>${esc(m.content || '')}</div>
+          </div>
+        `;
+      });
+      html += '</div>';
+
+      el.innerHTML = html;
+      document.getElementById('backToList').addEventListener('click', () => {
+        selectedConvoId = null;
+        renderStudentDetail();
+      });
+    }
+
+    // ---- Add student ----
+    document.getElementById('addStudentBtn').addEventListener('click', async () => {
+      const username = document.getElementById('newStudentName').value.trim();
+      const displayName = document.getElementById('newStudentDisplay').value.trim();
+      if (!username) return alert('请输入用户名');
+      const data = await api('/api/admin/students', {
+        method: 'POST',
+        body: JSON.stringify({ username, displayName: displayName || username, password: '123456' })
+      });
+      if (data.error) return alert(data.error);
+      document.getElementById('newStudentName').value = '';
+      document.getElementById('newStudentDisplay').value = '';
+      alert(`学生 "${displayName || username}" 已添加，初始密码：123456`);
+      loadStudents();
+    });
+
+    // ---- Search ----
+    document.getElementById('searchInput').addEventListener('input', e => {
+      renderStudentList(e.target.value.trim());
+    });
+
+    // ---- Helpers ----
+    function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function fmtDate(ts) { if (!ts) return ''; return new Date(ts).toLocaleDateString('zh-CN'); }
+    function fmtTime(ts) { if (!ts) return ''; return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); }
+
+    // ---- Init ----
+    loadStudents();
+  </script>
+</body>
+</html>
