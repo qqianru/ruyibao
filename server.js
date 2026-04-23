@@ -5,6 +5,10 @@ const crypto = require('crypto');
 const { hasApiKey, checkLlmHealth, getLlmHealth, generateCoachReply, generateMetacognitiveSummary, generateSurgeryStepFeedback, generateSurgeryCard } = require('./llm');
 const db = require('./db');
 
+// Concurrency queue for LLM calls
+const { default: PQueue } = require('p-queue');
+const llmQueue = new PQueue({ concurrency: 50 });
+
 // Daily per-user message cap
 const DAILY_LIMIT = 150;
 
