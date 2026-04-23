@@ -730,7 +730,7 @@ app.post('/api/chat', async (req, res) => {
   state.lastStrategy = selectStrategy(stateType, state);
   state.lastUserIntent = conversationMode;
 
-  const reply = await buildReply(stateType, state, session, userInput || '');
+  const reply = await llmQueue.add(() => buildReply(stateType, state, session, userInput || ''));
   session.messages.push({ ...reply, timestamp: Date.now() });
 
   // Persist conversation to db
