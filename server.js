@@ -1,9 +1,23 @@
 require('dotenv').config();
-
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 const { hasApiKey, checkLlmHealth, getLlmHealth, generateCoachReply, generateMetacognitiveSummary, generateSurgeryStepFeedback, generateSurgeryCard } = require('./llm');
 const db = require('./db');
+
+const app = express();
+
+// Daily per-user message cap
+const DAILY_LIMIT = 150;
+
+// Hash a (question + userInput) pair for response caching
+function hashQuestion(questionText, userInput) {
+  const normalized = ((questionText || '') + '|' + (userInput || ''))
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+  return crypto.createHash('sha256').update(normalized).digest('hex');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -387,11 +401,29 @@ async function buildReply(stateType, state, session, userInput) {
     };
   }
 
-  const fallback = buildRuleReply(stateType, state, { questionText: state.currentQuestion });
-
+ const fallback = buildRuleReply(stateType, state, { questionText: state.currentQuestion });
   const llmHealth = getLlmHealth();
   if (!llmHealth.healthy) {
     return fallback;
+  }
+
+  // ---- Response cache lookup ----
+  const cacheableStates = ['NORMAL', 'STUCK'];
+  const isCacheable = cacheableStates.includes(stateType) && state.hintLevel === 0;
+  let questionHash = null;
+
+  if (isCacheable) {
+    questionHash = hashQuestion(state.currentQuestion, userInput);
+    try {
+      const cached = await db.getCachedResponse(questionHash);
+      if (cached) {
+        state.askedPrompts.push(cached);
+        if (state.askedPrompts.length > 24) state.askedPrompts.shift();
+        return { role: 'assistant', type: stateType, content: cached };
+      }
+    } catch (e) {
+      console.error('Cache lookup failed:', e.message);
+    }
   }
 
   try {
@@ -407,11 +439,16 @@ async function buildReply(stateType, state, session, userInput) {
         recentMessages: session.messages.slice(-6)
       }
     });
-
     if (!llmText) return fallback;
-
     state.askedPrompts.push(llmText);
     if (state.askedPrompts.length > 24) state.askedPrompts.shift();
+
+    // Save to cache (fire and forget)
+    if (isCacheable && questionHash) {
+      db.saveCachedResponse(questionHash, llmText).catch(e => {
+        console.error('Cache save failed:', e.message);
+      });
+    }
 
     return {
       role: 'assistant',
@@ -423,7 +460,6 @@ async function buildReply(stateType, state, session, userInput) {
     return fallback;
   }
 }
-
 function analyzeTrace(state, messages) {
   const events = state.events || [];
   const counts = events.reduce((acc, e) => {
@@ -606,6 +642,24 @@ app.post('/api/chat', async (req, res) => {
   const session = SESSIONS.get(sessionId);
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
+  }
+
+  // ---- Rate limit check (only for logged-in users) ----
+  if (session.userId && session.userId !== 'guest') {
+    try {
+      const count = await db.incrementUsageCounter(session.userId);
+      if (count > DAILY_LIMIT) {
+        return res.status(429).json({
+          error: 'DAILY_LIMIT',
+          message: '今天的使用次数已达上限，明天再来吧。',
+          count,
+          limit: DAILY_LIMIT
+        });
+      }
+    } catch (e) {
+      console.error('Rate limit check failed:', e.message);
+      // Fail open — let the request through if the counter itself fails
+    }
   }
 
   const state = session.state;
