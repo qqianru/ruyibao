@@ -5,8 +5,6 @@ const crypto = require('crypto');
 const { hasApiKey, checkLlmHealth, getLlmHealth, generateCoachReply, generateMetacognitiveSummary, generateSurgeryStepFeedback, generateSurgeryCard } = require('./llm');
 const db = require('./db');
 
-const app = express();
-
 // Daily per-user message cap
 const DAILY_LIMIT = 150;
 
