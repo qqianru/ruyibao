@@ -99,6 +99,15 @@
       margin-bottom: -2px; padding: 10px 18px; cursor: pointer; font-weight: 600; border-radius: 0;
     }
     .tab-nav button.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .role-filter.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    .badge.parent { background: #fef3c7; color: #92400e; }
+    .badge.student { background: #dbeafe; color: #1e40af; }
+    .badge.teacher { background: #f3e8ff; color: #6b21a8; }
   </style>
 </head>
 <body>
@@ -116,7 +125,7 @@
 
     <!-- Top-level tab switcher -->
     <div class="tab-nav" style="margin: 0 0 16px;">
-      <button id="adminTabStudents" class="active">学生 (题目陪练)</button>
+      <button id="adminTabStudents" class="active">用户管理</button>
       <button id="adminTabExpertRequests">专家转介请求 <span id="expertRequestBadge" style="background:#ef4444;color:#fff;border-radius:8px;padding:1px 6px;font-size:11px;display:none;margin-left:4px;">0</span></button>
     </div>
 
@@ -125,14 +134,20 @@
       <div class="admin-grid">
         <!-- Left: student list -->
         <div class="panel student-list-panel">
-          <h2>学生列表</h2>
+          <h2>用户列表</h2>
           <div class="add-student-row">
             <input type="text" id="newStudentName" placeholder="用户名" />
             <input type="text" id="newStudentDisplay" placeholder="显示名" style="max-width:120px;" />
             <button id="addStudentBtn">添加</button>
           </div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;font-size:12px;">
+            <button class="secondary role-filter active" data-role-filter="all" style="font-size:12px;padding:6px 10px;">全部</button>
+            <button class="secondary role-filter" data-role-filter="student" style="font-size:12px;padding:6px 10px;">学生</button>
+            <button class="secondary role-filter" data-role-filter="parent" style="font-size:12px;padding:6px 10px;">家长</button>
+            <button class="secondary role-filter" data-role-filter="teacher" style="font-size:12px;padding:6px 10px;">教师</button>
+          </div>
           <div class="search-box">
-            <input type="text" id="searchInput" placeholder="搜索学生…" />
+            <input type="text" id="searchInput" placeholder="搜索…" />
           </div>
           <div id="studentList"></div>
         </div>
@@ -206,26 +221,39 @@
       renderStudentList();
     }
 
-    function renderStudentList(filter = '') {
+    let currentRoleFilter = 'all';  // 'all' | 'student' | 'parent' | 'teacher'
+
+    function renderStudentList(searchFilter = '') {
       const el = document.getElementById('studentList');
-      const filtered = filter
-        ? students.filter(s => s.displayName.includes(filter) || s.username.includes(filter))
-        : students;
+      let filtered = students;
+      // 按 role 过滤
+      if (currentRoleFilter !== 'all') {
+        filtered = filtered.filter(s => s.role === currentRoleFilter);
+      }
+      // 再按搜索词过滤
+      if (searchFilter) {
+        filtered = filtered.filter(s =>
+          (s.displayName || '').includes(searchFilter) ||
+          (s.username || '').includes(searchFilter)
+        );
+      }
       if (filtered.length === 0) {
-        el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">暂无学生</div>';
+        el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">暂无</div>';
         return;
       }
-      el.innerHTML = filtered.map(s => `
+      el.innerHTML = filtered.map(s => {
+        const roleLabel = s.role === 'teacher' ? '教师' : (s.role === 'parent' ? '家长' : '学生');
+        return `
         <div class="student-item ${s.id === selectedStudentId ? 'active' : ''}" data-id="${s.id}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;">
             <div>
-              <div class="name">${esc(s.displayName)} <span class="badge ${s.role}">${s.role === 'teacher' ? '教师' : '学生'}</span></div>
+              <div class="name">${esc(s.displayName)} <span class="badge ${s.role}">${roleLabel}</span></div>
               <div class="meta">@${esc(s.username)} · 注册于 ${fmtDate(s.createdAt)}</div>
             </div>
             <button class="delete-student-btn" data-id="${s.id}" data-name="${esc(s.displayName)}" style="background:none;color:#ef4444;border:1px solid #fca5a5;border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer;flex-shrink:0;margin-left:8px;" title="删除学生">删除</button>
           </div>
         </div>
-      `).join('');
+      `;}).join('');
       el.querySelectorAll('.student-item').forEach(item => {
         item.addEventListener('click', () => selectStudent(item.dataset.id));
       });
@@ -268,11 +296,12 @@
         return;
       }
 
+      const roleDisplay = student.role === 'teacher' ? '教师' : (student.role === 'parent' ? '家长' : '学生');
       let html = `
         <div class="student-info-card">
           <h3>${esc(student.displayName)}</h3>
           <div class="info-row">用户名：${esc(student.username)}</div>
-          <div class="info-row">角色：${student.role === 'teacher' ? '教师' : '学生'}</div>
+          <div class="info-row">角色：${roleDisplay}</div>
           <div class="info-row">注册时间：${fmtDate(student.createdAt)}</div>
           <div class="info-row">对话记录数：${studentConversations.length}</div>
         </div>
@@ -457,6 +486,17 @@
 
     // ---- Init ----
     loadStudents();
+
+    // 角色过滤器按钮 wiring
+    document.querySelectorAll('.role-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentRoleFilter = btn.dataset.roleFilter;
+        document.querySelectorAll('.role-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const searchVal = document.getElementById('searchInput').value.trim();
+        renderStudentList(searchVal);
+      });
+    });
 
     // ============================================================
     // ★ Expert request tab (NEW)
