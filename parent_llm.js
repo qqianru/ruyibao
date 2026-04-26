@@ -295,6 +295,47 @@ function detectExpertFollowupTrigger(replyContent) {
 }
 
 // ============================================================
+// 关键词兜底: 检测家长消息里的严重信号关键词
+// 不依赖 LLM 是否合作 — 只要家长发了这些词,就强制触发严重转介
+// ============================================================
+
+const CRISIS_USER_KEYWORDS = [
+  // 自伤
+  /自伤/, /自残/, /划痕/, /划手腕/, /割腕/, /伤害自己/, /伤自己/,
+  /拿刀/, /刀片/, /用刀划/, /撞墙/, /扎自己/, /用笔扎/,
+  // 自杀念头
+  /想自杀/, /不想活/, /想死/, /活着没意思/, /没意思活/, /想消失/,
+  /轻生/, /结束生命/, /跳楼/, /上吊/, /服药/.source && /吃药.*死/,
+  // 厌食/暴食极端
+  /好几天没吃/, /吐光/, /催吐/,
+  // 拒学严重
+  /好几个月没去学校/, /彻底不去/,
+  // 幻觉
+  /听到声音.*指挥/, /有声音.*让我/,
+  // 家长崩溃
+  /我撑不住/, /我也想死/, /我不想活/
+];
+
+/**
+ * 在家长发送的消息里检测严重信号关键词.
+ * 这是 LLM-independent 的安全网 — 关键词命中,不管 LLM 怎么回都强制触发严重转介.
+ *
+ * @param {string} userMessage - 家长这次发的话
+ * @returns {boolean} - 命中了就 true
+ */
+function detectCrisisInUserMessage(userMessage) {
+  if (!userMessage) return false;
+  const text = String(userMessage);
+  return CRISIS_USER_KEYWORDS.some(pat => {
+    if (pat instanceof RegExp) return pat.test(text);
+    return false;
+  });
+}
+
+// 兜底转介话术 (当 LLM 该说但没说时,强制追加这段到回复末尾)
+const SAFETY_NET_SEVERE_APPEND = '\n\n---\n\n⚠️ **重要提醒**\n\n你提到的情况——比如孩子出现自伤行为或表达"活着没意思"——这超出今晚我们能在这里聊清楚的范围。**我们后台工作人员会安排心理学专家主动联系你**，做一次面对面的评估。\n\n请在下方留下电话，方便我们联系。这一步不能跳。';
+
+// ============================================================
 // 对话摘要 (给后台员工看)
 // ============================================================
 
@@ -353,6 +394,8 @@ module.exports = {
   generateParentCoachReply,
   generateParentCoachReplyStream,
   detectExpertFollowupTrigger,
+  detectCrisisInUserMessage,
+  SAFETY_NET_SEVERE_APPEND,
   generateConversationSummary,
   getStatus
 };

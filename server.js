@@ -1667,7 +1667,7 @@ app.post('/api/parents/chat/stream', requireParent, async (req, res) => {
     );
 
     // result.fullContent 也是完整回复 (= fullReply,但用 result.fullContent 更可靠)
-    const finalContent = result.fullContent || fullReply;
+    let finalContent = result.fullContent || fullReply;
 
     if (!finalContent) {
       // 没拿到任何内容 (LLM 失败了),发结束事件
@@ -1679,12 +1679,29 @@ app.post('/api/parents/chat/stream', requireParent, async (req, res) => {
       return;
     }
 
+    // 检测专家转介触发 — 三层逻辑:
+    //   1. LLM 回复里有触发词? → 走 LLM 自然触发的路径
+    //   2. 没有,但家长消息有 crisis 关键词? → 强制兜底,追加固定话术 + 标记 severe
+    //   3. 都没有 → 不触发
+    let trigger = parentLlm.detectExpertFollowupTrigger(finalContent);
+
+    if (!trigger.triggered) {
+      // 第二层: 看家长消息有没有 crisis 关键词
+      const lastUserMsg = allMessages.filter(m => m.role === 'user').pop();
+      if (lastUserMsg && parentLlm.detectCrisisInUserMessage(lastUserMsg.content)) {
+        // 家长消息含严重信号 + LLM 没主动转介 → 强制追加兜底转介话术
+        console.warn('[chat/stream] safety-net triggered: user message has crisis keyword but LLM did not transfer');
+        finalContent = finalContent + parentLlm.SAFETY_NET_SEVERE_APPEND;
+        // 把追加的部分也通过 stream 推给浏览器,让用户能看到
+        sendEvent('token', { delta: parentLlm.SAFETY_NET_SEVERE_APPEND });
+        trigger = { triggered: true, urgency: 'severe' };
+      }
+    }
+
     // 保存到数据库
     const assistantMsg = { role: 'assistant', content: finalContent };
     await db.appendParentMessage(conversationId, assistantMsg);
 
-    // 检测专家转介
-    const trigger = parentLlm.detectExpertFollowupTrigger(finalContent);
     if (trigger.triggered) {
       await db.createExpertRequest({
         userId: userId,
