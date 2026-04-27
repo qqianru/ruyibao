@@ -24,20 +24,30 @@
         </div>
       </header>
 
-      <section class="parent-intro">
+      <!-- ① Primary action: chatbox first -->
+      <section class="parent-composer-card">
         <h2>👋 你今晚遇到什么情况？</h2>
-        <p>下面是十个最常见的家庭场景。点一张和你的情况最像的卡片，教练会用王鹰教授的方法，给你今晚就能做的具体动作。</p>
+        <p class="composer-hint">用你自己的话说就行。教练会用王鹰教授的方法，给你今晚就能做的具体动作。</p>
+        <textarea
+          id="customQuestion"
+          rows="5"
+          placeholder="例：我女儿初三，最近一周总说胃疼但医院查不出问题，她爸觉得是装病，我也不知道该怎么办……"
+        ></textarea>
+        <div class="composer-actions">
+          <span id="sourceTag" class="source-tag" hidden></span>
+          <button id="customStartBtn" class="primary-btn">开始和教练对话 →</button>
+        </div>
       </section>
 
-      <section class="scenario-grid" id="scenarioGrid">
-        <!-- 由 JS 动态填充 -->
-        <div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:60px 0;">载入中...</div>
-      </section>
-
-      <section class="parent-fallback">
-        <h3>🆓 都不像？直接告诉教练你的情况</h3>
-        <textarea id="customQuestion" rows="4" placeholder="例：我女儿初三，最近一周总说胃疼但医院查不出问题，她爸觉得是装病，我也不知道该怎么办……"></textarea>
-        <button id="customStartBtn" class="primary-btn">开始和教练对话 →</button>
+      <!-- ② Sample questions: tappable seeds, editable -->
+      <section class="parent-samples">
+        <div class="samples-header">
+          <h3>不知道怎么开口？</h3>
+          <p>看看其他家长是怎么问的。点一条放进上面，再改成你自己的情况。</p>
+        </div>
+        <div class="samples-list" id="samplesList">
+          <div style="text-align:center;color:var(--muted);padding:40px 0;">载入中...</div>
+        </div>
       </section>
     </div>
 
@@ -49,7 +59,6 @@
         window.location.href = '/login.html?role=parent';
       }
       if (mcUser && mcUser.role !== 'parent') {
-        // 已经登录但是不是家长账号 — 重定向到学生 app 或登录页
         if (mcUser.role === 'student') window.location.href = '/';
         else if (mcUser.role === 'teacher') window.location.href = '/admin.html';
       }
@@ -61,83 +70,153 @@
         window.location.href = '/login.html';
       });
 
-      // ---- Load 10 scenario cards ----
-      async function loadScenarios() {
-        try {
-          const r = await fetch('/api/parents/scenarios');
-          const data = await r.json();
-          const grid = document.getElementById('scenarioGrid');
-          grid.innerHTML = '';
-          for (const s of data.scenarios) {
-            const card = document.createElement('div');
-            card.className = 'scenario-card';
-            card.innerHTML = `
-              <div class="card-tag">${escapeHtml(s.subjectTag)}</div>
-              <div class="card-parent-state">${escapeHtml(s.parentState)}</div>
-              <div class="card-kid-quote">${escapeHtml(s.kidQuote)}</div>
-              <div class="card-cta">→ 看教练怎么处理</div>
-            `;
-            card.addEventListener('click', () => startSession(s.id));
-            grid.appendChild(card);
-          }
-        } catch (e) {
-          console.error(e);
-          document.getElementById('scenarioGrid').innerHTML =
-            '<div style="grid-column:1/-1;color:#c33;text-align:center;">载入失败，请刷新</div>';
-        }
-      }
+      // ---- State ----
+      // Track which sample (if any) seeded the textarea, so we can preserve
+      // scenarioId metadata on the conversation. Cleared if the user types
+      // from scratch or edits beyond recognition.
+      let pickedSample = null;       // { id, originalText }
+      const textarea = document.getElementById('customQuestion');
+      const sourceTag = document.getElementById('sourceTag');
 
       function escapeHtml(s) {
         return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       }
 
-      // ---- Start a session (either from card or from custom input) ----
-      async function startSession(scenarioId) {
-        try {
-          const r = await fetch('/api/parents/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-user-id': mcUser.id },
-            body: JSON.stringify({ scenarioId: scenarioId || null })
-          });
-          const data = await r.json();
-          if (data.error) {
-            alert('启动失败: ' + data.error);
-            return;
-          }
-          // 跳到聊天页
-          window.location.href = '/parents/chat.html?id=' + data.conversationId;
-        } catch (e) {
-          alert('网络错误,请稍后再试');
-        }
-      }
-
-      document.getElementById('customStartBtn').addEventListener('click', async () => {
-        const text = document.getElementById('customQuestion').value.trim();
-        if (!text) {
-          alert('请先描述一下你的情况');
-          return;
-        }
-        // 创建空会话,然后跳到聊天页带上 firstMessage 参数
-        try {
-          const r = await fetch('/api/parents/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-user-id': mcUser.id },
-            body: JSON.stringify({})  // 不带 scenarioId
-          });
-          const data = await r.json();
-          if (data.error) {
-            alert('启动失败: ' + data.error);
-            return;
-          }
-          // 把家长第一条消息暂存,聊天页会自动发送
-          sessionStorage.setItem('parents_pending_first_msg', text);
-          window.location.href = '/parents/chat.html?id=' + data.conversationId;
-        } catch (e) {
-          alert('网络错误,请稍后再试');
+      // Clear sourceTag if the user has edited the seed text away from the original.
+      // (We keep the tag if they've only made small edits — the scenarioId is still
+      // useful metadata. Threshold: if they've kept at least the opening 30 chars
+      // verbatim, treat it as "based on this sample".)
+      textarea.addEventListener('input', () => {
+        if (!pickedSample) return;
+        const current = textarea.value;
+        const seed = pickedSample.originalText.slice(0, 30);
+        if (!current.startsWith(seed)) {
+          pickedSample = null;
+          updateSourceTag(null);
         }
       });
 
-      loadScenarios();
+      function updateSourceTag(sampleObj) {
+        if (!sampleObj) {
+          sourceTag.hidden = true;
+          sourceTag.textContent = '';
+        } else {
+          sourceTag.hidden = false;
+          sourceTag.innerHTML =
+            '基于「' + escapeHtml(sampleObj.subjectTag) + '」示例 ' +
+            '<button type="button" class="source-clear" id="clearSourceBtn" aria-label="清空">×</button>';
+          document.getElementById('clearSourceBtn').addEventListener('click', () => {
+            textarea.value = '';
+            pickedSample = null;
+            updateSourceTag(null);
+            textarea.focus();
+          });
+        }
+      }
+
+      // ---- Load 10 sample questions ----
+      async function loadSamples() {
+        try {
+          const r = await fetch('/api/parents/scenarios');
+          const data = await r.json();
+          const list = document.getElementById('samplesList');
+          list.innerHTML = '';
+          data.scenarios.forEach((s, i) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'sample-item';
+            item.innerHTML =
+              '<div class="sample-row">' +
+                '<span class="sample-tag">' + escapeHtml(s.subjectTag) + '</span>' +
+                '<span class="sample-state">' + escapeHtml(s.parentState) + '</span>' +
+              '</div>' +
+              '<div class="sample-preview">' + escapeHtml(s.openingUserMessage) + '</div>' +
+              '<div class="sample-cta">点这条 → 放进上面再修改</div>';
+            item.addEventListener('click', () => useSample(s));
+            list.appendChild(item);
+          });
+        } catch (e) {
+          console.error(e);
+          document.getElementById('samplesList').innerHTML =
+            '<div style="color:#c33;text-align:center;padding:30px 0;">载入失败，请刷新</div>';
+        }
+      }
+
+      function useSample(s) {
+        const current = textarea.value.trim();
+        if (current && current !== (pickedSample && pickedSample.originalText)) {
+          if (!confirm('上面已经有内容了，要换成这条示例吗？（你输入的会被替换）')) return;
+        }
+        textarea.value = s.openingUserMessage;
+        pickedSample = { id: s.id, originalText: s.openingUserMessage, subjectTag: s.subjectTag };
+        updateSourceTag(pickedSample);
+        // scroll the composer back into view + focus at end of text
+        document.querySelector('.parent-composer-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      }
+
+      // ---- Submit: create session and jump to chat ----
+      async function startSession() {
+        const text = textarea.value.trim();
+        if (!text) {
+          alert('请先描述一下你的情况，或者从下面挑一条示例改一改');
+          textarea.focus();
+          return;
+        }
+
+        const btn = document.getElementById('customStartBtn');
+        btn.disabled = true;
+        btn.textContent = '正在连接教练…';
+
+        try {
+          // If the parent picked a sample and didn't edit it heavily, we pass
+          // scenarioId so the conversation retains that metadata. If they
+          // typed from scratch (or edited away the seed), no scenarioId.
+          const body = {};
+          if (pickedSample && text === pickedSample.originalText) {
+            body.scenarioId = pickedSample.id;
+          }
+
+          const r = await fetch('/api/parents/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-id': mcUser.id },
+            body: JSON.stringify(body)
+          });
+          const data = await r.json();
+          if (data.error) {
+            alert('启动失败: ' + data.error);
+            btn.disabled = false;
+            btn.textContent = '开始和教练对话 →';
+            return;
+          }
+
+          // If the user customized the message (or typed their own), the server
+          // didn't seed any opening. We hand the message to the chat page via
+          // sessionStorage and it sends it as the first message.
+          // If the user picked a sample verbatim, the server already seeded
+          // openingUserMessage from scenarioId — no pending message needed.
+          if (!body.scenarioId) {
+            sessionStorage.setItem('parents_pending_first_msg', text);
+          }
+          window.location.href = '/parents/chat.html?id=' + data.conversationId;
+        } catch (e) {
+          alert('网络错误,请稍后再试');
+          btn.disabled = false;
+          btn.textContent = '开始和教练对话 →';
+        }
+      }
+
+      document.getElementById('customStartBtn').addEventListener('click', startSession);
+      // Cmd/Ctrl+Enter to send
+      textarea.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault();
+          startSession();
+        }
+      });
+
+      loadSamples();
     </script>
   </body>
 </html>
