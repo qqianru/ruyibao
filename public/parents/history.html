@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>我的会话 · 茹意宝</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/parents.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="/ruyibao.jpeg" alt="茹意宝"
+               style="height:64px;width:64px;object-fit:cover;border-radius:50%;box-shadow:0 2px 12px rgba(160,120,220,0.4);" />
+          <div>
+            <h1>我的会话</h1>
+            <p>跟教练聊过的那些事，都在这里。</p>
+          </div>
+        </div>
+        <div class="user-bar">
+          <span id="userDisplay" style="font-size:13px;color:var(--muted);"></span>
+          <a href="/parents/" style="font-size:13px;">← 回家长区</a>
+          <a href="/" id="viewStudentLink" style="font-size:13px;color:var(--primary);">看学生区 →</a>
+          <button class="secondary" id="logoutBtn" style="font-size:12px;padding:6px 10px;">退出</button>
+        </div>
+      </header>
+
+      <section style="margin-top:8px;">
+        <div id="historyList">
+          <div style="text-align:center;color:var(--muted);padding:60px 0;">载入中...</div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      // ---- Auth check ----
+      let mcUser = null;
+      try { mcUser = JSON.parse(localStorage.getItem('mc_user')); } catch {}
+      if (!mcUser || !mcUser.id) {
+        window.location.href = '/login.html?role=parent';
+      }
+      if (mcUser && mcUser.role !== 'parent') {
+        if (mcUser.role === 'student') window.location.href = '/';
+        else if (mcUser.role === 'teacher') window.location.href = '/admin.html';
+      }
+
+      document.getElementById('userDisplay').textContent = mcUser ? mcUser.displayName : '';
+      document.getElementById('logoutBtn').addEventListener('click', () => {
+        localStorage.removeItem('mc_user');
+        window.location.href = '/login.html';
+      });
+
+      // ---- Helpers ----
+      function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+          ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      }
+
+      // Take the first user-authored message as a preview of "what this convo was about".
+      // If there's no user message yet (only opening), fall back to first assistant text.
+      function previewOf(convo) {
+        const msgs = Array.isArray(convo.messages) ? convo.messages : [];
+        const firstUser = msgs.find(m => m && m.role === 'user' && m.content);
+        if (firstUser) return firstUser.content;
+        const firstAny = msgs.find(m => m && m.content);
+        return firstAny ? firstAny.content : '(空会话)';
+      }
+
+      function formatTime(ts) {
+        if (!ts) return '';
+        const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+        if (isNaN(d.getTime())) return '';
+        const now = new Date();
+        const sameDay = d.toDateString() === now.toDateString();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const isYesterday = d.toDateString() === yesterday.toDateString();
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        if (sameDay) return `今天 ${hh}:${mm}`;
+        if (isYesterday) return `昨天 ${hh}:${mm}`;
+        // Older: show date
+        const M = d.getMonth() + 1;
+        const D = d.getDate();
+        return `${M}月${D}日 ${hh}:${mm}`;
+      }
+
+      // Count just the messages that count as "real" turns (user + assistant), not system meta.
+      function countTurns(convo) {
+        const msgs = Array.isArray(convo.messages) ? convo.messages : [];
+        return msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).length;
+      }
+
+      // ---- Load list ----
+      async function loadList() {
+        try {
+          const r = await fetch('/api/parents/conversations', {
+            headers: { 'x-user-id': mcUser.id }
+          });
+          if (!r.ok) {
+            throw new Error('HTTP ' + r.status);
+          }
+          const data = await r.json();
+          const list = document.getElementById('historyList');
+          const convos = Array.isArray(data.conversations) ? data.conversations : [];
+
+          if (convos.length === 0) {
+            list.innerHTML =
+              '<div style="text-align:center;color:var(--muted);padding:60px 20px;">' +
+                '<div style="font-size:15px;margin-bottom:14px;">还没有跟教练聊过。</div>' +
+                '<a href="/parents/" class="primary-btn" style="display:inline-block;text-decoration:none;">' +
+                  '开一个新会话 →' +
+                '</a>' +
+              '</div>';
+            return;
+          }
+
+          list.innerHTML = convos.map(c => {
+            const preview = previewOf(c);
+            const turns = countTurns(c);
+            const time = formatTime(c.updatedAt || c.createdAt);
+            const expertBadge = c.expertRequested
+              ? '<span class="history-badge history-badge-expert">已转介专家</span>'
+              : '';
+            return (
+              '<a class="history-item" href="/parents/chat.html?id=' + encodeURIComponent(c.id) + '">' +
+                '<div class="history-row">' +
+                  '<span class="history-time">' + escapeHtml(time) + '</span>' +
+                  '<span class="history-turns">' + turns + ' 条消息</span>' +
+                  expertBadge +
+                '</div>' +
+                '<div class="history-preview">' + escapeHtml(preview) + '</div>' +
+                '<div class="history-cta">点开继续这个会话 →</div>' +
+              '</a>'
+            );
+          }).join('');
+        } catch (e) {
+          console.error(e);
+          document.getElementById('historyList').innerHTML =
+            '<div style="text-align:center;color:#c33;padding:40px 0;">' +
+              '载入失败，请刷新重试。<br><span style="font-size:12px;color:var(--muted);">' +
+              escapeHtml(e.message) + '</span>' +
+            '</div>';
+        }
+      }
+
+      loadList();
+    </script>
+  </body>
+</html>
