@@ -196,7 +196,7 @@ async function generateParentCoachReplyStream(messages, onToken, onError) {
         messages: apiMessages,
         temperature: 0.7,
         max_tokens: 600,
-        stream: true
+        stream: true,
         thinking: { type: "disabled" }
         // 注意: 去掉了 stream_options.include_usage — GLM 某些 model 不支持会报错
       });
