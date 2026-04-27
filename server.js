@@ -841,7 +841,17 @@ app.post('/api/session', async (req, res) => {
   // Save conversation record to db
   if (userId && userId !== 'guest') {
     try {
-      const result = await db.saveConversation({ id: null, userId, sessionId: id, questionText: '', messages: [], state });
+      // Look up the user's role so we can mark this conversation with who created it.
+      // Students -> 'student' (the common case). Parents previewing the student
+      // section -> 'parent'. Teachers test-driving -> 'teacher'.
+      // Lets admin filter out non-student data later without polluting it now.
+      let creatorRole = 'student';
+      try {
+        const user = await db.getUserById(userId);
+        if (user && user.role) creatorRole = user.role;
+      } catch (e) { /* fall back to 'student' if lookup fails */ }
+
+      const result = await db.saveConversation({ id: null, userId, creatorRole, sessionId: id, questionText: '', messages: [], state });
       convId = result.id;
     } catch (e) { console.error('DB save error:', e.message); }
   }

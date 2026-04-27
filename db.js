@@ -20,6 +20,10 @@ const userSchema = new mongoose.Schema({
 // 学生会话（保持原有结构）
 const conversationSchema = new mongoose.Schema({
   userId:       { type: String, required: true, index: true },
+  // creatorRole: 这条 session 是哪种角色的人产生的。
+  // 一般是 'student'；家长进学生区试用时记 'parent'；老师试用时 'teacher'。
+  // 旧数据没有这个字段，读出来是 undefined，admin 端按 'student' 处理即可。
+  creatorRole:  { type: String, default: 'student', index: true },
   sessionId:    { type: String, index: true},
   questionText: { type: String, default: '' },
   messages:     { type: Array, default: [] },
@@ -200,7 +204,7 @@ async function getConversation(id) {
   } catch { return null; }
 }
 
-async function saveConversation({ id, userId, sessionId, questionText, messages, state, summary }) {
+async function saveConversation({ id, userId, creatorRole, sessionId, questionText, messages, state, summary }) {
   if (id) {
     const existing = await Conversation.findById(id);
     if (existing) {
@@ -215,6 +219,8 @@ async function saveConversation({ id, userId, sessionId, questionText, messages,
   }
   const convo = await Conversation.create({
     userId, sessionId,
+    // 默认 'student'，跟 schema 默认值一致；调用方传了别的（'parent'/'teacher'）就用传的
+    creatorRole: creatorRole || 'student',
     questionText: questionText || '',
     messages: messages || [],
     state: state || {},
