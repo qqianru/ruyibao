@@ -21,6 +21,7 @@
           <div class="user-bar" id="userBar">
             <span id="userDisplay" style="font-size:13px;color:var(--muted);"></span>
             <a href="/admin.html" id="adminLink" style="display:none;font-size:13px;">学生管理</a>
+            <a href="/parents/" id="backToParentsLink" style="display:none;font-size:13px;color:var(--primary);">← 回家长区</a>
             <button class="secondary" id="logoutBtn" style="font-size:12px;padding:6px 10px;">退出</button>
           </div>
           <label>模式</label>
@@ -31,6 +32,12 @@
           </select>
         </div>
       </header>
+
+      <!-- 家长以预览方式进入学生区时显示这条提示。学生 / 老师看不到。 -->
+      <div id="parentViewingNotice" class="parent-viewing-notice" style="display:none;">
+        <span>👀 你现在在看的是<strong>学生区</strong>。这里所有功能你都可以体验，了解孩子用什么工具学习。</span>
+        <a href="/parents/">← 回家长区</a>
+      </div>
 
       <main class="grid">
         <section class="panel question-panel">
@@ -198,13 +205,16 @@
       if (!mcUser || !mcUser.id) {
         window.location.href = '/login.html';
       }
-      // 如果是家长账号,自动跳到 /parents
-      if (mcUser && mcUser.role === 'parent') {
-        window.location.href = '/parents/';
-      }
+      // 如果是家长账号 — 不再自动踢走，而是允许进入学生区作为预览。
+      // 顶部会显示一条提示条 + 头部多一个"返回家长区"链接。
+      const isParentViewing = mcUser && mcUser.role === 'parent';
       document.getElementById('userDisplay').textContent = mcUser ? mcUser.displayName : '';
       if (mcUser && mcUser.role === 'teacher') {
         document.getElementById('adminLink').style.display = 'inline';
+      }
+      if (isParentViewing) {
+        document.getElementById('parentViewingNotice').style.display = '';
+        document.getElementById('backToParentsLink').style.display = 'inline';
       }
       document.getElementById('logoutBtn').addEventListener('click', () => {
         localStorage.removeItem('mc_user');

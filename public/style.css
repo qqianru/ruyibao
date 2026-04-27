@@ -428,29 +428,16 @@ button.secondary {
 /* Feature intro card at top of practice / exam panel.
    Sister to .surgery-intro — same look, different content per mode. */
 .mode-intro {
-  margin: 0 0 16px;
-  padding: 14px 18px;
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  padding: 10px 14px;
   background: linear-gradient(135deg, #fef5ff 0%, #eff7ff 100%);
   border: 1px solid #e6dcf7;
   border-radius: 12px;
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.65;
 }
-.mode-intro-title {
-  font-size: 14.5px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 8px;
-}
-.mode-intro-body ol {
-  margin: 6px 0 6px;
-  padding-left: 22px;
-}
-.mode-intro-body ol li {
-  margin: 3px 0;
-}
-.mode-intro-body strong {
+.mode-intro strong {
   color: var(--text);
   font-weight: 700;
 }
