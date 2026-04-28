@@ -40,15 +40,13 @@
         </div>
       </section>
 
-      <!-- ② Sample questions: tappable seeds, editable -->
-      <section class="parent-samples">
-        <div class="samples-header">
-          <h3>不知道怎么开口？</h3>
-          <p>看看其他家长是怎么问的。点一条放进上面，再改成你自己的情况。</p>
+      <!-- ② Layered category browser -->
+      <section class="parent-categories">
+        <div class="categories-header">
+          <h3>不知道怎么开口？按场景找</h3>
+          <p>选一个最像你家情况的类别，再选一条具体描述。点中之后会自动填到上面，你可以再改成你自己的情况。</p>
         </div>
-        <div class="samples-list" id="samplesList">
-          <div style="text-align:center;color:var(--muted);padding:40px 0;">载入中...</div>
-        </div>
+        <div class="categories-list" id="categoriesList"></div>
       </section>
     </div>
 
@@ -71,11 +69,128 @@
         window.location.href = '/login.html';
       });
 
+      // ---- Categories data (3-layer hierarchy) ----
+      const CATEGORIES = [
+        {
+          id: 'cat1',
+          number: '一',
+          title: '闭门冷战与"冷暴力"',
+          icon: '🚪',
+          consultQuestion: '孩子彻底关闭心门，对我实行"冷暴力"，我完全被蒙在鼓里，怎么办？',
+          scenarios: [
+            '孩子一回家就反锁房门，永远用"嗯、哦、随便"敷衍，连句真话都套不出来。',
+            '孩子宁愿在短视频里找共鸣，也不愿跟我说半句心里话，除了要钱吃饭，连吵都懒得吵。',
+            '现在除了"吃了吗""去学吧"，跟孩子完全找不到别的话题，我根本走不进他的世界！',
+            '孩子在学校是乖宝宝，一进家门就摆臭脸找茬，还指责我"只爱外面那个优秀的他"，我感到很委屈。'
+          ]
+        },
+        {
+          id: 'cat2',
+          number: '二',
+          title: '情绪暴走与"火药桶"',
+          icon: '💥',
+          consultQuestion: '孩子像个随时会爆的"火药桶"，一点就炸，家里经常爆发"家庭战争"！',
+          scenarios: [
+            '我什么都没说，或者只是随口问一句"今天累不累"？孩子就像被点着了一样突然发无名火。',
+            '明明是洗手、吃饭这种鸡毛蒜皮的小事，孩子偏要故意跟我对着干，好像就是为了争个输赢。',
+            '孩子吵架时，专门挑我最痛的地方骂，甚至摔门砸东西、对我推搡动手，让我很伤心又无奈。',
+            '我想开家庭会议解决问题，结果每次都变成翻旧账、互相指责的批斗会，孩子觉得我是设"鸿门宴"。'
+          ]
+        },
+        {
+          id: 'cat3',
+          number: '三',
+          title: '触碰学习雷区与"破罐破摔"',
+          icon: '📉',
+          consultQuestion: '一提到"作业"和"分数"，家里就变成"高压锅"，孩子学得苦却考得差，一遇挫折他（她）就彻底摆烂！',
+          scenarios: [
+            '平时不说话，一开口问"作业写完没"？"考了多少分"？孩子瞬间就炸毛，家里马上变成吵架现场。',
+            '孩子每天熬夜，笔记抄得很漂亮，但一考试就原形毕露，我稍微提点建议他就嫌我烦，怎么办呢？',
+            '孩子做错一道题，就哭喊着："考不上高中我这辈子就完了"！我越安慰他越崩溃，怎么纠正他的"灾难化思维"？',
+            '孩子因为一次没考好，干脆撕卷子、不写作业，摆烂说："反正我就是废了"！怎么打破这种僵局？'
+          ]
+        },
+        {
+          id: 'cat4',
+          number: '四',
+          title: '厌学逃避与"玻璃心"',
+          icon: '🪟',
+          consultQuestion: '一辅导作业就鸡飞狗跳，孩子只能听表扬，听不得半句反面意见，尽找借口逃避学习！',
+          scenarios: [
+            '孩子写作业严重拖延，一写作业就喊头痛肚子痛，甚至把"装病"当成了不写作业的免死金牌。',
+            '辅导作业，孩子被指出错误就崩溃大哭，觉得自己"怎么都学不会"，干脆摆烂不动笔了，我该怎么办？',
+            '孩子只能接受考得好，我指出某处错误他就炸毛，觉得我在全盘否定他，怎么才能让孩子不再这么"玻璃心"？',
+            '孩子不仅逃避写题，最近情绪极度低落，甚至说不想去学校了，我该怎么办？'
+          ]
+        },
+        {
+          id: 'cat5',
+          number: '五',
+          title: '手机拉锯与"极端对抗"',
+          icon: '📱',
+          consultQuestion: '为了手机孩子天天在家里爆发"拉锯战"，说轻了没用，一没收手机他就绝食威胁，完全管不住了。',
+          scenarios: [
+            '说轻了没用，但没收手机孩子就绝食抗议甚至摔东西，我该怎么办？',
+            '孩子遇到困难就抱着手机逃避，稍微管一下，他便"一点就着"，甚至跟我冷战好几天不说话。',
+            '我感觉自己变成一个"监工"，不盯着孩子，他就不学，一盯着他就嫌我侵犯隐私，我到底怎么把握关心的分寸？'
+          ]
+        },
+        {
+          id: 'cat6',
+          number: '六',
+          title: '无效说教与"家长焦虑失控"',
+          icon: '😮‍💨',
+          consultQuestion: '我明明是为了他好，结果不是控制不住发火，就是好心被当驴肝肺，不知道该如何正确开口？',
+          scenarios: [
+            '一看到孩子磨蹭，我就控制不住地焦虑发火，脱口而出"考不上高中怎么办"？但我说完又后悔。',
+            '快中考了，我好心给孩子熬汤切水果，结果换来一句"你别打扰我"，我特别委屈，不知道该怎么关心他才对？',
+            '我苦口婆心讲道理，孩子不是敷衍"知道了，你烦不烦"？就是直接捂耳朵打断我，我很苦恼，明明是我占理，却把关系搞砸了！',
+            '孩子说"好累""不想学了"，我下意识就说"大家不都这样"，结果孩子直接甩脸子，我完全接不住他的情绪。'
+          ]
+        },
+        {
+          id: 'cat7',
+          number: '七',
+          title: '满嘴大话与"理直气壮甩锅"',
+          icon: '🗣️',
+          consultQuestion: '孩子看了几个短视频就满嘴大话，还理直气壮的摆烂，把所有问题全甩锅给我！',
+          scenarios: [
+            '孩子天天拿"原生家庭有毒"、"情感勒索"指责我，说他现在的不上进全是我害的。',
+            '孩子自己不努力、沉迷游戏，却理直气壮地说"都是你们从小没给我安全感，你们自己反省吧"！',
+            '我明明已经认错了，孩子却冷冰冰地说"迟来的道歉比草都贱"，一边骂我控制欲强，一边理直气壮花我的钱。我该怎么办？',
+            '现在家里只要一说话，孩子就用一套心理学理论审判我，给我扣上各种帽子，家变成了法庭！'
+          ]
+        },
+        {
+          id: 'cat8',
+          number: '八',
+          title: '生死威胁与"心理危机"',
+          icon: '⚠️',
+          consultQuestion: '孩子动不动就拿命来威胁，或者出现极端情绪苗头，我很怕孩子做出什么极端的行为。',
+          scenarios: [
+            '我怕给孩子压力，在家里小心翼翼的，结果孩子反而更敏感，家长到底怎么表达才不踩雷？',
+            '孩子最近情绪极其低落，觉得做什么都没有意思。他怎么了？我该怎么办？'
+          ]
+        },
+        {
+          id: 'cat9',
+          number: '九',
+          title: '校园社交与"隐性霸凌"',
+          icon: '🏫',
+          consultQuestion: '孩子在学校遭遇社交困境甚至被霸凌，回家却闷在心里，我该怎么帮他！',
+          scenarios: [
+            '孩子在学校没朋友，总是落单被小团体排挤，回家什么都不说，我怎么帮他走出来。',
+            '孩子在学校被起外号、被同学建小群孤立，甚至遭到网络背刺和造谣，我该怎么保护他？',
+            '孩子性格太软弱，在学校一味讨好别人、不敢拒绝，受了委屈只敢回家发脾气，怎么引导她？'
+          ]
+        }
+      ];
+
       // ---- State ----
-      // Track which sample (if any) seeded the textarea, so we can preserve
-      // scenarioId metadata on the conversation. Cleared if the user types
-      // from scratch or edits beyond recognition.
-      let pickedSample = null;       // { id, originalText }
+      // pickedScenario tracks which scenario (if any) seeded the textarea.
+      // Since these are local categories (not server scenarios), we don't pass
+      // scenarioId to the API — the message itself becomes the first user msg.
+      let pickedScenario = null;  // { categoryTitle, originalText }
       const textarea = document.getElementById('customQuestion');
       const sourceTag = document.getElementById('sourceTag');
 
@@ -84,74 +199,107 @@
       }
 
       // Clear sourceTag if the user has edited the seed text away from the original.
-      // (We keep the tag if they've only made small edits — the scenarioId is still
-      // useful metadata. Threshold: if they've kept at least the opening 30 chars
-      // verbatim, treat it as "based on this sample".)
       textarea.addEventListener('input', () => {
-        if (!pickedSample) return;
+        if (!pickedScenario) return;
         const current = textarea.value;
-        const seed = pickedSample.originalText.slice(0, 30);
+        const seed = pickedScenario.originalText.slice(0, 30);
         if (!current.startsWith(seed)) {
-          pickedSample = null;
+          pickedScenario = null;
           updateSourceTag(null);
         }
       });
 
-      function updateSourceTag(sampleObj) {
-        if (!sampleObj) {
+      function updateSourceTag(scenarioObj) {
+        if (!scenarioObj) {
           sourceTag.hidden = true;
           sourceTag.textContent = '';
         } else {
           sourceTag.hidden = false;
           sourceTag.innerHTML =
-            '基于「' + escapeHtml(sampleObj.subjectTag) + '」示例 ' +
+            '基于「' + escapeHtml(scenarioObj.categoryTitle) + '」示例 ' +
             '<button type="button" class="source-clear" id="clearSourceBtn" aria-label="清空">×</button>';
           document.getElementById('clearSourceBtn').addEventListener('click', () => {
             textarea.value = '';
-            pickedSample = null;
+            pickedScenario = null;
             updateSourceTag(null);
             textarea.focus();
           });
         }
       }
 
-      // ---- Load 10 sample questions ----
-      async function loadSamples() {
-        try {
-          const r = await fetch('/api/parents/scenarios');
-          const data = await r.json();
-          const list = document.getElementById('samplesList');
-          list.innerHTML = '';
-          data.scenarios.forEach((s, i) => {
+      // ---- Render the 2-layer category browser ----
+      // Layer 1: category title + 咨询问题 (as description) — always visible.
+      // Click → Layer 2: 4 scenarios appear directly.
+      function renderCategories() {
+        const list = document.getElementById('categoriesList');
+        list.innerHTML = '';
+        CATEGORIES.forEach(cat => {
+          const card = document.createElement('div');
+          card.className = 'category-card';
+          card.dataset.categoryId = cat.id;
+
+          // Layer 1: clickable header containing title + consult question as description
+          const header = document.createElement('button');
+          header.type = 'button';
+          header.className = 'category-header';
+          header.setAttribute('aria-expanded', 'false');
+          header.innerHTML =
+            '<div class="category-header-left">' +
+              '<div class="category-title-row">' +
+                '<span class="category-icon">' + cat.icon + '</span>' +
+                '<span class="category-number">' + escapeHtml(cat.number) + '、</span>' +
+                '<span class="category-title">' + escapeHtml(cat.title) + '</span>' +
+              '</div>' +
+              '<div class="category-desc">' + escapeHtml(cat.consultQuestion) + '</div>' +
+            '</div>' +
+            '<span class="category-chevron" aria-hidden="true">▸</span>';
+          card.appendChild(header);
+
+          // Layer 2: scenario list (collapsible)
+          const scenList = document.createElement('div');
+          scenList.className = 'scenario-list';
+          cat.scenarios.forEach((text, i) => {
             const item = document.createElement('button');
             item.type = 'button';
-            item.className = 'sample-item';
+            item.className = 'scenario-item';
             item.innerHTML =
-              '<div class="sample-row">' +
-                '<span class="sample-tag">' + escapeHtml(s.subjectTag) + '</span>' +
-                '<span class="sample-state">' + escapeHtml(s.parentState) + '</span>' +
-              '</div>' +
-              '<div class="sample-preview">' + escapeHtml(s.openingUserMessage) + '</div>' +
-              '<div class="sample-cta">点这条 → 放进上面再修改</div>';
-            item.addEventListener('click', () => useSample(s));
-            list.appendChild(item);
+              '<span class="scenario-num">' + (i + 1) + '</span>' +
+              '<span class="scenario-text">' + escapeHtml(text) + '</span>' +
+              '<span class="scenario-cta">填进上面 →</span>';
+            item.addEventListener('click', (e) => {
+              e.stopPropagation();
+              useScenario(text, cat.title);
+            });
+            scenList.appendChild(item);
           });
-        } catch (e) {
-          console.error(e);
-          document.getElementById('samplesList').innerHTML =
-            '<div style="color:#c33;text-align:center;padding:30px 0;">载入失败，请刷新</div>';
-        }
+          card.appendChild(scenList);
+
+          // Click header: toggle open/closed (accordion — closes other open cards)
+          header.addEventListener('click', () => {
+            const isOpen = card.classList.contains('open');
+            document.querySelectorAll('.category-card.open').forEach(c => {
+              if (c !== card) {
+                c.classList.remove('open');
+                c.querySelector('.category-header').setAttribute('aria-expanded', 'false');
+              }
+            });
+            card.classList.toggle('open', !isOpen);
+            header.setAttribute('aria-expanded', String(!isOpen));
+          });
+
+          list.appendChild(card);
+        });
       }
 
-      function useSample(s) {
+      function useScenario(text, categoryTitle) {
         const current = textarea.value.trim();
-        if (current && current !== (pickedSample && pickedSample.originalText)) {
+        if (current && current !== (pickedScenario && pickedScenario.originalText)) {
           if (!confirm('上面已经有内容了，要换成这条示例吗？（你输入的会被替换）')) return;
         }
-        textarea.value = s.openingUserMessage;
-        pickedSample = { id: s.id, originalText: s.openingUserMessage, subjectTag: s.subjectTag };
-        updateSourceTag(pickedSample);
-        // scroll the composer back into view + focus at end of text
+        textarea.value = text;
+        pickedScenario = { originalText: text, categoryTitle: categoryTitle };
+        updateSourceTag(pickedScenario);
+        // Scroll the composer back into view + focus at end of text
         document.querySelector('.parent-composer-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
         textarea.focus();
         textarea.setSelectionRange(textarea.value.length, textarea.value.length);
@@ -171,18 +319,12 @@
         btn.textContent = '正在连接教练…';
 
         try {
-          // If the parent picked a sample and didn't edit it heavily, we pass
-          // scenarioId so the conversation retains that metadata. If they
-          // typed from scratch (or edited away the seed), no scenarioId.
-          const body = {};
-          if (pickedSample && text === pickedSample.originalText) {
-            body.scenarioId = pickedSample.id;
-          }
-
+          // Local categories don't have server-side scenarioId.
+          // The message goes via sessionStorage as the first user message.
           const r = await fetch('/api/parents/session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-user-id': mcUser.id },
-            body: JSON.stringify(body)
+            body: JSON.stringify({})
           });
           const data = await r.json();
           if (data.error) {
@@ -191,15 +333,7 @@
             btn.textContent = '开始和教练对话 →';
             return;
           }
-
-          // If the user customized the message (or typed their own), the server
-          // didn't seed any opening. We hand the message to the chat page via
-          // sessionStorage and it sends it as the first message.
-          // If the user picked a sample verbatim, the server already seeded
-          // openingUserMessage from scenarioId — no pending message needed.
-          if (!body.scenarioId) {
-            sessionStorage.setItem('parents_pending_first_msg', text);
-          }
+          sessionStorage.setItem('parents_pending_first_msg', text);
           window.location.href = '/parents/chat.html?id=' + data.conversationId;
         } catch (e) {
           alert('网络错误,请稍后再试');
@@ -217,7 +351,7 @@
         }
       });
 
-      loadSamples();
+      renderCategories();
     </script>
   </body>
 </html>
